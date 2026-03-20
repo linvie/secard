@@ -1,0 +1,93 @@
+.settings-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.settings-page h1 {
+  font-size: 28px;
+  margin: 0 0 32px;
+  letter-spacing: -0.5px;
+}
+
+.settings-section {
+  margin-bottom: 32px;
+}
+
+.settings-section h2 {
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+
+.settings-desc {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.current-key {
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.current-key code {
+  font-size: 13px;
+}
+
+.settings-form {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-form input {
+  flex: 1;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+  background: var(--bg);
+  color: var(--text-h);
+  outline: none;
+}
+
+.settings-form input:focus {
+  border-color: var(--accent-border);
+}
+
+.settings-form button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.settings-form button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.settings-form button:not(:disabled):hover {
+  opacity: 0.85;
+}
+
+.settings-msg {
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+.settings-msg-success {
+  color: #22c55e;
+}
+
+.settings-msg-error {
+  color: #ef4444;
+}

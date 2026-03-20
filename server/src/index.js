@@ -4,6 +4,7 @@ const { getDb } = require('./db');
 const cardsRouter = require('./routes/cards');
 const conversationsRouter = require('./routes/conversations');
 const worksRouter = require('./routes/works');
+const settingsRouter = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,6 +21,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/works', worksRouter);
 app.use('/api/cards', cardsRouter);
 app.use('/api/conversations', conversationsRouter);
+app.use('/api/settings', settingsRouter);
 
 // Initialize database on startup
 getDb();

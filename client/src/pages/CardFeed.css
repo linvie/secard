@@ -32,6 +32,29 @@
   transition: opacity 0.2s;
 }
 
+.feed-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  transition: color 0.2s, background 0.2s;
+}
+
+.btn-settings:hover {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
 .btn-new:hover {
   opacity: 0.85;
 }

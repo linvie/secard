@@ -44,3 +44,49 @@ export async function createWork(work) {
   if (!res.ok) throw new Error('Failed to create work');
   return res.json();
 }
+
+export async function sendChat(card_id, message) {
+  const res = await fetch(`${BASE}/conversations/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ card_id, message }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to send message');
+  }
+  return res.json();
+}
+
+export async function generateSummary(cardId) {
+  const res = await fetch(`${BASE}/conversations/summary/${cardId}`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to generate summary');
+  }
+  return res.json();
+}
+
+export async function fetchSettings() {
+  const res = await fetch(`${BASE}/settings`);
+  if (!res.ok) throw new Error('Failed to fetch settings');
+  return res.json();
+}
+
+export async function updateSettings(settings) {
+  const res = await fetch(`${BASE}/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) throw new Error('Failed to update settings');
+  return res.json();
+}
+
+export async function fetchSettingsStatus() {
+  const res = await fetch(`${BASE}/settings/status`);
+  if (!res.ok) throw new Error('Failed to fetch settings status');
+  return res.json();
+}
