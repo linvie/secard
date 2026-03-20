@@ -3,6 +3,7 @@ const cors = require('cors');
 const { getDb } = require('./db');
 const cardsRouter = require('./routes/cards');
 const conversationsRouter = require('./routes/conversations');
+const worksRouter = require('./routes/works');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -16,6 +17,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
+app.use('/api/works', worksRouter);
 app.use('/api/cards', cardsRouter);
 app.use('/api/conversations', conversationsRouter);
 
