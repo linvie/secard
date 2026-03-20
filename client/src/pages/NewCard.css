@@ -163,3 +163,8 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+.new-card-error {
+  font-size: 14px;
+  color: #ef4444;
+}

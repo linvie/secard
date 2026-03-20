@@ -110,8 +110,10 @@ export default function CardDetail() {
       <section className="detail-conversations">
         <div className="conv-header">
           <h2>对话记录 {messages.length > 0 && <span className="msg-count">{messages.length}</span>}</h2>
-          {messages.length > 0 && !card.ai_summary && (
-            <button className="btn-summary" onClick={handleGenerateSummary}>生成摘要</button>
+          {messages.length > 0 && (
+            <button className="btn-summary" onClick={handleGenerateSummary}>
+              {card.ai_summary ? '重新生成摘要' : '生成摘要'}
+            </button>
           )}
         </div>
 
@@ -138,16 +140,18 @@ export default function CardDetail() {
       {chatError && <p className="chat-error">{chatError}</p>}
 
       <form className="chat-input" onSubmit={handleSend}>
-        <input
-          type="text"
-          placeholder="输入你的想法，和 AI 对话…"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={sending}
-        />
-        <button type="submit" disabled={!input.trim() || sending}>
-          {sending ? '…' : '发送'}
-        </button>
+        <div className="chat-input-inner">
+          <input
+            type="text"
+            placeholder="输入你的想法，和 AI 对话…"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={sending}
+          />
+          <button type="submit" disabled={!input.trim() || sending}>
+            {sending ? '…' : '发送'}
+          </button>
+        </div>
       </form>
     </div>
   );

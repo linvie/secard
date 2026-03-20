@@ -10,10 +10,12 @@ export default function NewCard() {
   const [selectedWork, setSelectedWork] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleSubmit = useCallback(async () => {
     if (!content.trim() || submitting) return;
     setSubmitting(true);
+    setError(null);
     try {
       let workId = null;
       if (selectedWork) {
@@ -33,7 +35,8 @@ export default function NewCard() {
       }
       await createCard({ content: content.trim(), work_id: workId });
       navigate('/');
-    } catch {
+    } catch (err) {
+      setError(err.message || '创建失败，请重试');
       setSubmitting(false);
     }
   }, [content, selectedWork, submitting, navigate]);
@@ -73,6 +76,8 @@ export default function NewCard() {
             </button>
           )}
         </div>
+
+        {error && <p className="new-card-error">{error}</p>}
 
         <button
           className="btn-submit"
