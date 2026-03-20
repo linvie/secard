@@ -29,6 +29,12 @@ export async function searchWorks({ type, q }) {
   return res.json();
 }
 
+export async function fetchConversations(cardId) {
+  const res = await fetch(`${BASE}/conversations/card/${cardId}`);
+  if (!res.ok) throw new Error('Failed to fetch conversations');
+  return res.json();
+}
+
 export async function createWork(work) {
   const res = await fetch(`${BASE}/works`, {
     method: 'POST',
