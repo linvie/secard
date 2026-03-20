@@ -6,6 +6,12 @@ export async function fetchCards() {
   return res.json();
 }
 
+export async function fetchCard(id) {
+  const res = await fetch(`${BASE}/cards/${id}`);
+  if (!res.ok) throw new Error('Failed to fetch card');
+  return res.json();
+}
+
 export async function createCard({ content, work_id }) {
   const res = await fetch(`${BASE}/cards`, {
     method: 'POST',

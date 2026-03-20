@@ -33,7 +33,7 @@ export default function CardFeed() {
 
       <div className="card-list">
         {cards.map((card) => (
-          <div key={card.id} className="card-item">
+          <Link key={card.id} to={`/cards/${card.id}`} className="card-item">
             <p className="card-content">{card.content}</p>
             <div className="card-meta">
               {card.work_title && (
@@ -49,7 +49,7 @@ export default function CardFeed() {
                 <p className="card-summary">{card.ai_summary}</p>
               )}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

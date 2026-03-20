@@ -64,16 +64,20 @@
   gap: 12px;
 }
 
-.card-item {
+a.card-item {
+  display: block;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 16px 20px;
   text-align: left;
+  text-decoration: none;
+  color: inherit;
   transition: box-shadow 0.2s;
+  cursor: pointer;
 }
 
-.card-item:hover {
+a.card-item:hover {
   box-shadow: var(--shadow);
 }
 
