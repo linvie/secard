@@ -50,16 +50,26 @@ router.get('/:id', (req, res) => {
 });
 
 // List cards (newest first), with work name and conversation count
+// Optional query: ?work_id=N to filter by associated work
 router.get('/', (req, res) => {
   const db = getDb();
-  const cards = db.prepare(`
+  const { work_id } = req.query;
+
+  let sql = `
     SELECT c.*, w.title AS work_title, w.type AS work_type,
       (SELECT COUNT(*) FROM conversations WHERE card_id = c.id) AS message_count
     FROM cards c
-    LEFT JOIN works w ON c.work_id = w.id
-    ORDER BY c.created_at DESC
-  `).all();
+    LEFT JOIN works w ON c.work_id = w.id`;
+  const params = [];
 
+  if (work_id) {
+    sql += ' WHERE c.work_id = ?';
+    params.push(work_id);
+  }
+
+  sql += ' ORDER BY c.created_at DESC';
+
+  const cards = db.prepare(sql).all(...params);
   res.json(cards);
 });
 

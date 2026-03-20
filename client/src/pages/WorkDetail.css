@@ -1,0 +1,142 @@
+.work-detail {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.work-detail-status {
+  text-align: center;
+  color: var(--text);
+  padding: 40px 0;
+}
+
+/* Work header */
+.work-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.work-type-icon {
+  font-size: 40px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.work-meta {
+  min-width: 0;
+}
+
+.work-detail-title {
+  font-size: 24px;
+  margin: 0 0 8px;
+  letter-spacing: -0.5px;
+  word-break: break-word;
+}
+
+.work-detail-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.work-detail-creator {
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.work-detail-type {
+  background: var(--accent-bg);
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Cards section */
+.work-cards-section {
+  margin-top: 8px;
+}
+
+.work-cards-section h2 {
+  font-size: 16px;
+  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cards-count {
+  font-size: 12px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.work-cards-empty {
+  text-align: center;
+  color: var(--text);
+  padding: 24px 0;
+  font-size: 14px;
+}
+
+.work-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+a.work-card-item {
+  display: block;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.2s;
+  cursor: pointer;
+}
+
+a.work-card-item:hover {
+  box-shadow: var(--shadow);
+}
+
+.work-card-content {
+  margin: 0 0 10px;
+  color: var(--text-h);
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.work-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.work-card-messages {
+  color: var(--text);
+}
+
+.work-card-summary {
+  width: 100%;
+  margin: 4px 0 0;
+  font-style: italic;
+  color: var(--text);
+  font-size: 13px;
+}

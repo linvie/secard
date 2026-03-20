@@ -22,6 +22,18 @@ export async function createCard({ content, work_id }) {
   return res.json();
 }
 
+export async function fetchWork(id) {
+  const res = await fetch(`${BASE}/works/${id}`);
+  if (!res.ok) throw new Error('Failed to fetch work');
+  return res.json();
+}
+
+export async function fetchWorkCards(workId) {
+  const res = await fetch(`${BASE}/cards?work_id=${workId}`);
+  if (!res.ok) throw new Error('Failed to fetch work cards');
+  return res.json();
+}
+
 export async function searchWorks({ type, q }) {
   const params = new URLSearchParams({ type, q });
   const res = await fetch(`${BASE}/works/search?${params}`);
