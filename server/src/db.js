@@ -28,6 +28,7 @@ function initTables(db) {
       year INTEGER,
       cover_url TEXT,
       external_id TEXT,
+      external_source TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -49,6 +50,18 @@ function initTables(db) {
       FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
     );
   `);
+
+  // Migration: add external_source column if missing (for existing databases)
+  const columns = db.prepare("PRAGMA table_info(works)").all();
+  const hasExternalSource = columns.some((col) => col.name === 'external_source');
+  if (!hasExternalSource) {
+    db.exec("ALTER TABLE works ADD COLUMN external_source TEXT");
+    // Migrate existing data: infer source from type and external_id
+    db.exec(`
+      UPDATE works SET external_source = 'musicbrainz' WHERE type = 'music' AND external_id IS NOT NULL;
+      UPDATE works SET external_source = 'openlibrary' WHERE type = 'book' AND external_id IS NOT NULL;
+    `);
+  }
 }
 
 module.exports = { getDb };

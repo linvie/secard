@@ -29,6 +29,7 @@ export default function NewCard() {
             year: selectedWork.year || null,
             cover_url: selectedWork.cover_url || null,
             external_id: selectedWork.external_id || null,
+            external_source: selectedWork.external_source || null,
           });
           workId = created.id;
         }
