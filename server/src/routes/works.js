@@ -70,7 +70,7 @@ router.get('/', (req, res) => {
   res.json(works);
 });
 
-// Search external sources (MusicBrainz / Open Library)
+// Search: local works + external sources (MusicBrainz / Open Library / iTunes / Google Books)
 router.get('/search', async (req, res) => {
   const { type, q } = req.query;
 
@@ -83,54 +83,88 @@ router.get('/search', async (req, res) => {
 
   try {
     const query = q.trim();
-    let results;
+
+    // 1. Query local works table (LIKE fuzzy matching)
+    const db = getDb();
+    const localWorks = db.prepare(
+      'SELECT * FROM works WHERE type = ? AND (title LIKE ? OR creator LIKE ?) ORDER BY created_at DESC'
+    ).all(type, `%${query}%`, `%${query}%`);
+
+    // Build a set of local external_ids for "已收藏" marking
+    const localExternalIds = new Set(
+      localWorks.filter((w) => w.external_id).map((w) => w.external_id)
+    );
+
+    // Mark local results
+    const localResults = localWorks.map((w) => ({
+      ...w,
+      is_local: true,
+      saved: true,
+    }));
+
+    // 2. Search external sources
+    let externalResults;
     if (type === 'music') {
       const isChinese = containsChinese(query);
       if (isChinese) {
-        // Chinese query: search both sources in parallel
         const [mbResults, itunesResults] = await Promise.all([
           searchMusicBrainz(query).catch(() => []),
           searchItunes(query).catch(() => []),
         ]);
-        results = mergeAndDedup(mbResults, itunesResults);
+        externalResults = mergeAndDedup(mbResults, itunesResults);
       } else {
-        // Non-Chinese: try MusicBrainz first, fallback to iTunes if < 3 results
         const mbResults = await searchMusicBrainz(query);
         if (mbResults.length < 3) {
           const itunesResults = await searchItunes(query).catch(() => []);
-          results = mergeAndDedup(mbResults, itunesResults);
+          externalResults = mergeAndDedup(mbResults, itunesResults);
         } else {
-          results = mbResults;
+          externalResults = mbResults;
         }
       }
     } else {
-      // Book search: Open Library + optional Google Books
       const settings = readSettings();
       const gbKey = settings.google_books_api_key;
       const isChinese = containsChinese(query);
 
       if (gbKey && isChinese) {
-        // Chinese query with API key: search both in parallel
         const [olResults, gbResults] = await Promise.all([
           searchOpenLibrary(query).catch(() => []),
           searchGoogleBooks(query, gbKey).catch(() => []),
         ]);
-        results = mergeAndDedupBooks(olResults, gbResults);
+        externalResults = mergeAndDedupBooks(olResults, gbResults);
       } else if (gbKey) {
-        // Non-Chinese: try Open Library first, fallback to Google Books if < 3 results
         const olResults = await searchOpenLibrary(query);
         if (olResults.length < 3) {
           const gbResults = await searchGoogleBooks(query, gbKey).catch(() => []);
-          results = mergeAndDedupBooks(olResults, gbResults);
+          externalResults = mergeAndDedupBooks(olResults, gbResults);
         } else {
-          results = olResults;
+          externalResults = olResults;
         }
       } else {
-        // No API key: Open Library only
-        results = await searchOpenLibrary(query);
+        externalResults = await searchOpenLibrary(query);
       }
     }
-    res.json(rankResults(results, query));
+
+    // 3. Mark external results that match local works as "已收藏", deduplicate with local
+    const localTitleCreatorSet = new Set(
+      localWorks.map((w) => `${(w.title || '').toLowerCase().trim()}||${(w.creator || '').toLowerCase().trim()}`)
+    );
+
+    const filteredExternal = externalResults
+      .filter((item) => {
+        // Remove external results that are duplicates of local results (by title+creator)
+        const key = `${(item.title || '').toLowerCase().trim()}||${(item.creator || '').toLowerCase().trim()}`;
+        return !localTitleCreatorSet.has(key);
+      })
+      .map((item) => ({
+        ...item,
+        is_local: false,
+        saved: item.external_id ? localExternalIds.has(item.external_id) : false,
+      }));
+
+    // 4. Local results first (unranked, by recency), then ranked external results
+    const rankedExternal = rankResults(filteredExternal, query);
+    res.json([...localResults, ...rankedExternal]);
   } catch (err) {
     console.error('External search error:', err);
     res.status(502).json({ error: 'External search failed' });

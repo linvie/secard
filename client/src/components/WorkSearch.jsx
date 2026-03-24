@@ -52,12 +52,14 @@ export default function WorkSearch({ onSelect, onClose }) {
 
   const handleSelectResult = (item) => {
     onSelect({
+      ...(item.is_local && item.id ? { id: item.id } : {}),
       type: item.type,
       title: item.title,
       creator: item.creator,
       year: item.year,
       cover_url: item.cover_url || null,
       external_id: item.external_id || null,
+      external_source: item.external_source || null,
     });
   };
 
@@ -116,15 +118,18 @@ export default function WorkSearch({ onSelect, onClose }) {
             <div className="search-results">
               {results.map((item, idx) => (
                 <button
-                  key={item.external_id || idx}
-                  className="result-item"
+                  key={item.id || item.external_id || idx}
+                  className={`result-item${item.is_local ? ' result-local' : ''}`}
                   onClick={() => handleSelectResult(item)}
                 >
                   {item.cover_url && (
                     <img className="result-cover" src={item.cover_url} alt="" />
                   )}
                   <div className="result-info">
-                    <span className="result-title">{item.title}</span>
+                    <span className="result-title">
+                      {item.title}
+                      {item.saved && <span className="badge-saved">已收藏</span>}
+                    </span>
                     <span className="result-detail">
                       {[item.creator, item.year].filter(Boolean).join(' · ')}
                     </span>

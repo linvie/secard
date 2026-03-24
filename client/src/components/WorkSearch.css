@@ -163,6 +163,22 @@
   font-size: 13px;
 }
 
+.badge-saved {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.result-local {
+  background: var(--accent-bg);
+}
+
 .movie-form {
   display: flex;
   flex-direction: column;
