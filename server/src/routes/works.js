@@ -74,7 +74,24 @@ router.get('/search', async (req, res) => {
     const query = q.trim();
     let results;
     if (type === 'music') {
-      results = await searchMusicBrainz(query);
+      const isChinese = containsChinese(query);
+      if (isChinese) {
+        // Chinese query: search both sources in parallel
+        const [mbResults, itunesResults] = await Promise.all([
+          searchMusicBrainz(query).catch(() => []),
+          searchItunes(query).catch(() => []),
+        ]);
+        results = mergeAndDedup(mbResults, itunesResults);
+      } else {
+        // Non-Chinese: try MusicBrainz first, fallback to iTunes if < 3 results
+        const mbResults = await searchMusicBrainz(query);
+        if (mbResults.length < 3) {
+          const itunesResults = await searchItunes(query).catch(() => []);
+          results = mergeAndDedup(mbResults, itunesResults);
+        } else {
+          results = mbResults;
+        }
+      }
     } else {
       results = await searchOpenLibrary(query);
     }
@@ -247,6 +264,49 @@ async function searchMusicBrainz(query) {
   });
 
   return results;
+}
+
+async function searchItunes(query) {
+  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=album&country=CN&limit=10`;
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    throw new Error(`iTunes returned ${resp.status}`);
+  }
+  const data = await resp.json();
+
+  return (data.results || []).map((item) => ({
+    external_id: item.collectionId ? String(item.collectionId) : null,
+    title: item.collectionName || null,
+    creator: item.artistName || null,
+    year: item.releaseDate ? parseInt(item.releaseDate.slice(0, 4), 10) || null : null,
+    cover_url: item.artworkUrl100
+      ? item.artworkUrl100.replace('100x100', '300x300')
+      : null,
+    external_source: 'itunes',
+    type: 'music',
+  }));
+}
+
+function mergeAndDedup(mbResults, itunesResults) {
+  const merged = [...mbResults];
+  for (const itItem of itunesResults) {
+    const itTitle = (itItem.title || '').toLowerCase().trim();
+    const itCreator = (itItem.creator || '').toLowerCase().trim();
+    const duplicate = merged.find((m) => {
+      const mTitle = (m.title || '').toLowerCase().trim();
+      const mCreator = (m.creator || '').toLowerCase().trim();
+      return mTitle === itTitle && mCreator === itCreator;
+    });
+    if (duplicate) {
+      // Prefer iTunes cover
+      if (itItem.cover_url && !duplicate.cover_url) {
+        duplicate.cover_url = itItem.cover_url;
+      }
+    } else {
+      merged.push(itItem);
+    }
+  }
+  return merged;
 }
 
 async function searchOpenLibrary(query) {
