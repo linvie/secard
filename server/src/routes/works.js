@@ -71,13 +71,14 @@ router.get('/search', async (req, res) => {
   }
 
   try {
+    const query = q.trim();
     let results;
     if (type === 'music') {
-      results = await searchMusicBrainz(q.trim());
+      results = await searchMusicBrainz(query);
     } else {
-      results = await searchOpenLibrary(q.trim());
+      results = await searchOpenLibrary(query);
     }
-    res.json(results);
+    res.json(rankResults(results, query));
   } catch (err) {
     console.error('External search error:', err);
     res.status(502).json({ error: 'External search failed' });
@@ -143,10 +144,71 @@ router.delete('/:id', (req, res) => {
   res.status(204).end();
 });
 
+// --- Helpers ---
+
+function containsChinese(text) {
+  return /[\u4e00-\u9fff]/.test(text);
+}
+
+function computeRelevanceScore(item, query) {
+  let score = 0;
+  const q = query.toLowerCase();
+  const title = (item.title || '').toLowerCase();
+  const creator = (item.creator || '').toLowerCase();
+
+  // Title matching
+  if (title === q) {
+    score += 100;
+  } else if (title.startsWith(q)) {
+    score += 60;
+  } else if (title.includes(q)) {
+    score += 30;
+  }
+
+  // Chinese result boost when query contains Chinese
+  if (containsChinese(query) && containsChinese(item.title || '')) {
+    score += 40;
+  }
+
+  // Creator matching
+  if (creator.includes(q)) {
+    score += 20;
+  }
+
+  // Metadata completeness
+  if (item.cover_url) score += 5;
+  if (item.year) score += 3;
+  if (item.creator) score += 3;
+
+  return score;
+}
+
+function rankResults(results, query) {
+  return results
+    .map((item) => ({ ...item, _score: computeRelevanceScore(item, query) }))
+    .sort((a, b) => b._score - a._score)
+    .map(({ _score, ...item }) => item);
+}
+
 // --- External search helpers ---
 
 // MusicBrainz rate limiting: minimum 1 second between requests
 let lastMBRequestTime = 0;
+
+async function fetchCoverArt(mbid) {
+  try {
+    const resp = await fetch(
+      `https://coverartarchive.org/release-group/${mbid}/front-250`,
+      { redirect: 'manual' }
+    );
+    if (resp.status === 307 || resp.status === 302) {
+      return resp.headers.get('location');
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 async function searchMusicBrainz(query) {
   // Enforce rate limit
@@ -167,7 +229,7 @@ async function searchMusicBrainz(query) {
   }
   const data = await resp.json();
 
-  return (data['release-groups'] || []).map((rg) => ({
+  const results = (data['release-groups'] || []).map((rg) => ({
     external_id: rg.id,
     title: rg.title,
     creator: rg['artist-credit']?.map((ac) => ac.name).join(', ') || null,
@@ -176,6 +238,15 @@ async function searchMusicBrainz(query) {
     external_source: 'musicbrainz',
     type: 'music',
   }));
+
+  // Fetch covers in parallel from Cover Art Archive
+  const coverPromises = results.map((r) => fetchCoverArt(r.external_id));
+  const covers = await Promise.all(coverPromises);
+  results.forEach((r, i) => {
+    if (covers[i]) r.cover_url = covers[i];
+  });
+
+  return results;
 }
 
 async function searchOpenLibrary(query) {
