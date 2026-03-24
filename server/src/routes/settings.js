@@ -18,24 +18,32 @@ function writeSettings(data) {
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(data, null, 2));
 }
 
-// Get settings (mask API key for security)
+function maskKey(key) {
+  return key ? '****' + key.slice(-4) : '';
+}
+
+// Get settings (mask API keys for security)
 router.get('/', (req, res) => {
   const settings = readSettings();
   res.json({
-    deepseek_api_key: settings.deepseek_api_key
-      ? '****' + settings.deepseek_api_key.slice(-4)
-      : '',
+    deepseek_api_key: maskKey(settings.deepseek_api_key),
+    google_books_api_key: maskKey(settings.google_books_api_key),
   });
 });
 
 // Update settings
 router.put('/', (req, res) => {
-  const { deepseek_api_key } = req.body;
-  if (deepseek_api_key === undefined) {
-    return res.status(400).json({ error: 'deepseek_api_key is required' });
+  const { deepseek_api_key, google_books_api_key } = req.body;
+  if (deepseek_api_key === undefined && google_books_api_key === undefined) {
+    return res.status(400).json({ error: 'At least one setting field is required' });
   }
   const settings = readSettings();
-  settings.deepseek_api_key = deepseek_api_key;
+  if (deepseek_api_key !== undefined) {
+    settings.deepseek_api_key = deepseek_api_key;
+  }
+  if (google_books_api_key !== undefined) {
+    settings.google_books_api_key = google_books_api_key;
+  }
   writeSettings(settings);
   res.json({ success: true });
 });
@@ -43,7 +51,10 @@ router.put('/', (req, res) => {
 // Check if API key is configured
 router.get('/status', (req, res) => {
   const settings = readSettings();
-  res.json({ configured: !!settings.deepseek_api_key });
+  res.json({
+    configured: !!settings.deepseek_api_key,
+    google_books_configured: !!settings.google_books_api_key,
+  });
 });
 
 module.exports = router;

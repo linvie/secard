@@ -1,7 +1,18 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { getDb } = require('../db');
 
 const router = express.Router();
+const SETTINGS_PATH = path.join(__dirname, '..', '..', 'data', 'settings.json');
+
+function readSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
+  } catch {
+    return {};
+  }
+}
 
 // Create a work
 router.post('/', (req, res) => {
@@ -93,7 +104,31 @@ router.get('/search', async (req, res) => {
         }
       }
     } else {
-      results = await searchOpenLibrary(query);
+      // Book search: Open Library + optional Google Books
+      const settings = readSettings();
+      const gbKey = settings.google_books_api_key;
+      const isChinese = containsChinese(query);
+
+      if (gbKey && isChinese) {
+        // Chinese query with API key: search both in parallel
+        const [olResults, gbResults] = await Promise.all([
+          searchOpenLibrary(query).catch(() => []),
+          searchGoogleBooks(query, gbKey).catch(() => []),
+        ]);
+        results = mergeAndDedupBooks(olResults, gbResults);
+      } else if (gbKey) {
+        // Non-Chinese: try Open Library first, fallback to Google Books if < 3 results
+        const olResults = await searchOpenLibrary(query);
+        if (olResults.length < 3) {
+          const gbResults = await searchGoogleBooks(query, gbKey).catch(() => []);
+          results = mergeAndDedupBooks(olResults, gbResults);
+        } else {
+          results = olResults;
+        }
+      } else {
+        // No API key: Open Library only
+        results = await searchOpenLibrary(query);
+      }
     }
     res.json(rankResults(results, query));
   } catch (err) {
@@ -327,6 +362,52 @@ async function searchOpenLibrary(query) {
     external_source: 'openlibrary',
     type: 'book',
   }));
+}
+
+async function searchGoogleBooks(query, apiKey) {
+  const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&langRestrict=zh&key=${encodeURIComponent(apiKey)}&maxResults=10`;
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    throw new Error(`Google Books returned ${resp.status}`);
+  }
+  const data = await resp.json();
+
+  return (data.items || []).map((item) => {
+    const info = item.volumeInfo || {};
+    const year = info.publishedDate ? parseInt(info.publishedDate.slice(0, 4), 10) || null : null;
+    const thumbnail = info.imageLinks?.thumbnail || null;
+    return {
+      external_id: item.id || null,
+      title: info.title || null,
+      creator: info.authors?.[0] || null,
+      year,
+      cover_url: thumbnail,
+      external_source: 'googlebooks',
+      type: 'book',
+    };
+  });
+}
+
+function mergeAndDedupBooks(olResults, gbResults) {
+  const merged = [...olResults];
+  for (const gbItem of gbResults) {
+    const gbTitle = (gbItem.title || '').toLowerCase().trim();
+    const gbCreator = (gbItem.creator || '').toLowerCase().trim();
+    const duplicate = merged.find((m) => {
+      const mTitle = (m.title || '').toLowerCase().trim();
+      const mCreator = (m.creator || '').toLowerCase().trim();
+      return mTitle === gbTitle && mCreator === gbCreator;
+    });
+    if (duplicate) {
+      // Prefer Google Books cover
+      if (gbItem.cover_url && !duplicate.cover_url) {
+        duplicate.cover_url = gbItem.cover_url;
+      }
+    } else {
+      merged.push(gbItem);
+    }
+  }
+  return merged;
 }
 
 module.exports = router;

@@ -9,9 +9,17 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
 
+  const [gbApiKey, setGbApiKey] = useState('');
+  const [currentGbKey, setCurrentGbKey] = useState('');
+  const [savingGb, setSavingGb] = useState(false);
+  const [gbMessage, setGbMessage] = useState(null);
+
   useEffect(() => {
     fetchSettings()
-      .then((data) => setCurrentKey(data.deepseek_api_key || ''))
+      .then((data) => {
+        setCurrentKey(data.deepseek_api_key || '');
+        setCurrentGbKey(data.google_books_api_key || '');
+      })
       .catch(() => {});
   }, []);
 
@@ -29,6 +37,23 @@ export default function Settings() {
       setMessage({ type: 'error', text: '保存失败，请重试' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveGb = async (e) => {
+    e.preventDefault();
+    if (!gbApiKey.trim()) return;
+    setSavingGb(true);
+    setGbMessage(null);
+    try {
+      await updateSettings({ google_books_api_key: gbApiKey.trim() });
+      setCurrentGbKey('****' + gbApiKey.trim().slice(-4));
+      setGbApiKey('');
+      setGbMessage({ type: 'success', text: 'API Key 已保存' });
+    } catch {
+      setGbMessage({ type: 'error', text: '保存失败，请重试' });
+    } finally {
+      setSavingGb(false);
     }
   };
 
@@ -62,6 +87,34 @@ export default function Settings() {
 
         {message && (
           <p className={`settings-msg settings-msg-${message.type}`}>{message.text}</p>
+        )}
+      </section>
+
+      <section className="settings-section">
+        <h2>Google Books API Key</h2>
+        <p className="settings-desc">
+          配置后可增强中文书籍搜索结果。未配置时仅使用 Open Library 搜索。
+          API Key 仅存储在本地，不会上传到任何服务器。
+        </p>
+
+        {currentGbKey && (
+          <p className="current-key">当前 Key：<code>{currentGbKey}</code></p>
+        )}
+
+        <form onSubmit={handleSaveGb} className="settings-form">
+          <input
+            type="password"
+            placeholder="输入 Google Books API Key"
+            value={gbApiKey}
+            onChange={(e) => setGbApiKey(e.target.value)}
+          />
+          <button type="submit" disabled={!gbApiKey.trim() || savingGb}>
+            {savingGb ? '保存中…' : '保存'}
+          </button>
+        </form>
+
+        {gbMessage && (
+          <p className={`settings-msg settings-msg-${gbMessage.type}`}>{gbMessage.text}</p>
         )}
       </section>
     </div>
