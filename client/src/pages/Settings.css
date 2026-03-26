@@ -91,3 +91,94 @@
 .settings-msg-error {
   color: #ef4444;
 }
+
+/* AI Style Selection */
+.style-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.style-card {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.style-card:hover {
+  border-color: var(--accent-border);
+  color: var(--text-h);
+}
+
+.style-card-active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.style-card-name {
+  pointer-events: none;
+}
+
+.style-preview {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--code-bg);
+  border-radius: 8px;
+}
+
+.custom-prompt-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--text-h);
+  resize: vertical;
+  outline: none;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.custom-prompt-input:focus {
+  border-color: var(--accent-border);
+}
+
+.custom-prompt-input::placeholder {
+  color: var(--text);
+  opacity: 0.5;
+}
+
+.style-save-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.style-save-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.style-save-btn:not(:disabled):hover {
+  opacity: 0.85;
+}

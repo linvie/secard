@@ -28,13 +28,15 @@ router.get('/', (req, res) => {
   res.json({
     deepseek_api_key: maskKey(settings.deepseek_api_key),
     google_books_api_key: maskKey(settings.google_books_api_key),
+    ai_style: settings.ai_style || 'thoughtful',
+    ai_custom_prompt: settings.ai_custom_prompt || '',
   });
 });
 
 // Update settings
 router.put('/', (req, res) => {
-  const { deepseek_api_key, google_books_api_key } = req.body;
-  if (deepseek_api_key === undefined && google_books_api_key === undefined) {
+  const { deepseek_api_key, google_books_api_key, ai_style, ai_custom_prompt } = req.body;
+  if (deepseek_api_key === undefined && google_books_api_key === undefined && ai_style === undefined && ai_custom_prompt === undefined) {
     return res.status(400).json({ error: 'At least one setting field is required' });
   }
   const settings = readSettings();
@@ -43,6 +45,12 @@ router.put('/', (req, res) => {
   }
   if (google_books_api_key !== undefined) {
     settings.google_books_api_key = google_books_api_key;
+  }
+  if (ai_style !== undefined) {
+    settings.ai_style = ai_style;
+  }
+  if (ai_custom_prompt !== undefined) {
+    settings.ai_custom_prompt = ai_custom_prompt;
   }
   writeSettings(settings);
   res.json({ success: true });

@@ -6,14 +6,86 @@ const { getDb } = require('../db');
 const router = express.Router();
 const SETTINGS_PATH = path.join(__dirname, '..', '..', 'data', 'settings.json');
 
-function getApiKey() {
+function getSettings() {
   try {
-    const settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
-    return settings.deepseek_api_key || '';
+    return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
   } catch {
-    return '';
+    return {};
   }
 }
+
+function getApiKey() {
+  return getSettings().deepseek_api_key || '';
+}
+
+// AI style presets: each defines a persona and tone for the conversation
+const AI_STYLE_PRESETS = {
+  thoughtful: {
+    name: '深度思考',
+    prompt: '你是一位善于引导深度思考的对话伙伴。请基于用户的感想，用启发性的问题和观察帮助用户深入探索自己的想法。语气温和而富有洞察力，像一位善于倾听的朋友。',
+    temperature: 0.7,
+    maxResponseChars: 200,
+  },
+  warm: {
+    name: '温暖共情',
+    prompt: '你是一位温暖、善于共情的倾听者。请认真感受用户文字中的情绪，给予真诚的回应和情感上的支持。不急于分析或建议，先让用户感到被理解和接纳。语气亲切自然，像在和好友聊天。',
+    temperature: 0.8,
+    maxResponseChars: 200,
+  },
+  critical: {
+    name: '犀利点评',
+    prompt: '你是一位有独到见解的文艺评论者。请基于用户的感想，给出有深度、有锐度的评论和延伸思考。可以提出不同视角甚至温和的反驳，激发更深层的思考。语气直接但不刻薄，像一位犀利的书评人。',
+    temperature: 0.6,
+    maxResponseChars: 250,
+  },
+  creative: {
+    name: '自由联想',
+    prompt: '你是一位富有想象力的创意伙伴。请基于用户的感想，自由地联想到其他作品、意象、故事或哲学概念，编织出意想不到的连接。语气轻松有趣，像一场天马行空的头脑风暴。',
+    temperature: 0.9,
+    maxResponseChars: 250,
+  },
+  concise: {
+    name: '简洁精炼',
+    prompt: '你是一位言简意赅的对话者。请用最精炼的语言回应用户的感想，每次回复控制在两三句话以内。一针见血，不说废话，像禅宗语录般简洁有力。',
+    temperature: 0.5,
+    maxResponseChars: 100,
+  },
+};
+
+function buildSystemPrompt(card, styleKey, customPrompt) {
+  const style = AI_STYLE_PRESETS[styleKey];
+  const persona = styleKey === 'custom' && customPrompt ? customPrompt : (style || AI_STYLE_PRESETS.thoughtful).prompt;
+  const maxChars = style ? style.maxResponseChars : 200;
+
+  let systemContent = `${persona}\n\n用户的原始感想：\n"${card.content}"`;
+
+  if (card.work_title) {
+    const typeLabel = { music: '音乐', book: '书籍', movie: '电影' }[card.work_type] || '作品';
+    systemContent += `\n\n关联作品：${typeLabel}《${card.work_title}》`;
+    if (card.work_creator) systemContent += `，创作者：${card.work_creator}`;
+    if (card.work_year) systemContent += `，年份：${card.work_year}`;
+  }
+
+  systemContent += `\n\n回复控制在 ${maxChars} 字以内。`;
+
+  return systemContent;
+}
+
+function getStyleTemperature(styleKey) {
+  const style = AI_STYLE_PRESETS[styleKey];
+  return style ? style.temperature : 0.7;
+}
+
+// Get available AI style presets
+router.get('/styles', (req, res) => {
+  const styles = Object.entries(AI_STYLE_PRESETS).map(([key, val]) => ({
+    key,
+    name: val.name,
+    description: val.prompt,
+  }));
+  styles.push({ key: 'custom', name: '自定义', description: '使用自定义的对话提示词' });
+  res.json(styles);
+});
 
 // Create a message for a card
 router.post('/', (req, res) => {
@@ -97,20 +169,11 @@ router.post('/chat', async (req, res) => {
   );
   insertMsg.run(card_id, 'user', message.trim());
 
-  // Build conversation context
-  let systemContent = `你是一位善于引导深度思考的对话伙伴。用户记录了一段关于文艺作品的感想，请基于这段感想和用户展开对话，帮助用户深入探索自己的想法。
-
-用户的原始感想：
-"${card.content}"`;
-
-  if (card.work_title) {
-    const typeLabel = { music: '音乐', book: '书籍', movie: '电影' }[card.work_type] || '作品';
-    systemContent += `\n\n关联作品：${typeLabel}《${card.work_title}》`;
-    if (card.work_creator) systemContent += `，创作者：${card.work_creator}`;
-    if (card.work_year) systemContent += `，年份：${card.work_year}`;
-  }
-
-  systemContent += '\n\n请用简洁、温和的语气回应，引导用户思考而非说教。回复控制在 200 字以内。';
+  // Build conversation context using AI style
+  const settings = getSettings();
+  const styleKey = settings.ai_style || 'thoughtful';
+  const customPrompt = settings.ai_custom_prompt || '';
+  const systemContent = buildSystemPrompt(card, styleKey, customPrompt);
 
   // Get existing conversation history
   const history = db.prepare(
@@ -133,7 +196,7 @@ router.post('/chat', async (req, res) => {
         model: 'deepseek-chat',
         messages: apiMessages,
         max_tokens: 512,
-        temperature: 0.7,
+        temperature: getStyleTemperature(styleKey),
       }),
     });
 

@@ -81,6 +81,12 @@ export async function generateSummary(cardId) {
   return res.json();
 }
 
+export async function fetchAiStyles() {
+  const res = await fetch(`${BASE}/conversations/styles`);
+  if (!res.ok) throw new Error('Failed to fetch AI styles');
+  return res.json();
+}
+
 export async function fetchSettings() {
   const res = await fetch(`${BASE}/settings`);
   if (!res.ok) throw new Error('Failed to fetch settings');

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchSettings, updateSettings } from '../api';
+import { fetchSettings, updateSettings, fetchAiStyles } from '../api';
 import './Settings.css';
 
 export default function Settings() {
@@ -14,12 +14,23 @@ export default function Settings() {
   const [savingGb, setSavingGb] = useState(false);
   const [gbMessage, setGbMessage] = useState(null);
 
+  const [styles, setStyles] = useState([]);
+  const [selectedStyle, setSelectedStyle] = useState('thoughtful');
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [savingStyle, setSavingStyle] = useState(false);
+  const [styleMessage, setStyleMessage] = useState(null);
+
   useEffect(() => {
     fetchSettings()
       .then((data) => {
         setCurrentKey(data.deepseek_api_key || '');
         setCurrentGbKey(data.google_books_api_key || '');
+        setSelectedStyle(data.ai_style || 'thoughtful');
+        setCustomPrompt(data.ai_custom_prompt || '');
       })
+      .catch(() => {});
+    fetchAiStyles()
+      .then((data) => setStyles(data))
       .catch(() => {});
   }, []);
 
@@ -57,10 +68,70 @@ export default function Settings() {
     }
   };
 
+  const handleSaveStyle = async () => {
+    setSavingStyle(true);
+    setStyleMessage(null);
+    try {
+      await updateSettings({ ai_style: selectedStyle, ai_custom_prompt: customPrompt });
+      setStyleMessage({ type: 'success', text: 'AI 风格已保存' });
+    } catch {
+      setStyleMessage({ type: 'error', text: '保存失败，请重试' });
+    } finally {
+      setSavingStyle(false);
+    }
+  };
+
+  const currentStyleDesc = styles.find(s => s.key === selectedStyle);
+
   return (
     <div className="settings-page">
       <Link to="/" className="back-link">← 返回</Link>
       <h1>设置</h1>
+
+      <section className="settings-section">
+        <h2>AI 对话风格</h2>
+        <p className="settings-desc">
+          选择 AI 与你对话时的风格和语气，也可以自定义提示词。
+        </p>
+
+        <div className="style-grid">
+          {styles.map((style) => (
+            <button
+              key={style.key}
+              className={`style-card${selectedStyle === style.key ? ' style-card-active' : ''}`}
+              onClick={() => setSelectedStyle(style.key)}
+            >
+              <span className="style-card-name">{style.name}</span>
+            </button>
+          ))}
+        </div>
+
+        {currentStyleDesc && selectedStyle !== 'custom' && (
+          <p className="style-preview">{currentStyleDesc.description}</p>
+        )}
+
+        {selectedStyle === 'custom' && (
+          <textarea
+            className="custom-prompt-input"
+            placeholder="输入自定义的 AI 人设提示词，例如：你是一位诗人，请用诗意的语言回应用户的感想……"
+            value={customPrompt}
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            rows={4}
+          />
+        )}
+
+        <button
+          className="style-save-btn"
+          onClick={handleSaveStyle}
+          disabled={savingStyle}
+        >
+          {savingStyle ? '保存中…' : '保存风格'}
+        </button>
+
+        {styleMessage && (
+          <p className={`settings-msg settings-msg-${styleMessage.type}`}>{styleMessage.text}</p>
+        )}
+      </section>
 
       <section className="settings-section">
         <h2>DeepSeek API Key</h2>
