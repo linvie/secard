@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchCards } from '../api';
+import { fetchCards, deleteCard } from '../api';
 import './CardFeed.css';
 
 export default function CardFeed() {
@@ -13,6 +13,18 @@ export default function CardFeed() {
       .catch(() => setCards([]))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleDelete = async (e, cardId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm('确定要删除这张卡片吗？删除后无法恢复。')) return;
+    try {
+      await deleteCard(cardId);
+      setCards((prev) => prev.filter((c) => c.id !== cardId));
+    } catch {
+      alert('删除失败，请重试');
+    }
+  };
 
   return (
     <div className="card-feed">
@@ -41,23 +53,35 @@ export default function CardFeed() {
 
       <div className="card-list">
         {cards.map((card) => (
-          <Link key={card.id} to={`/cards/${card.id}`} className="card-item">
-            <p className="card-content">{card.content}</p>
-            <div className="card-meta">
-              {card.work_title && (
-                <span className="card-work">
-                  {card.work_type === 'music' ? '🎵' : card.work_type === 'book' ? '📖' : '🎬'}
-                  {' '}{card.work_title}
-                </span>
-              )}
-              {card.message_count > 0 && (
-                <span className="card-messages">{card.message_count} 条对话</span>
-              )}
-              {card.ai_summary && (
-                <p className="card-summary">{card.ai_summary}</p>
-              )}
-            </div>
-          </Link>
+          <div key={card.id} className="card-item-wrapper">
+            <Link to={`/cards/${card.id}`} className="card-item">
+              <p className="card-content">{card.content}</p>
+              <div className="card-meta">
+                {card.work_title && (
+                  <span className="card-work">
+                    {card.work_type === 'music' ? '🎵' : card.work_type === 'book' ? '📖' : '🎬'}
+                    {' '}{card.work_title}
+                  </span>
+                )}
+                {card.message_count > 0 && (
+                  <span className="card-messages">{card.message_count} 条对话</span>
+                )}
+                {card.ai_summary && (
+                  <p className="card-summary">{card.ai_summary}</p>
+                )}
+              </div>
+            </Link>
+            <button
+              className="btn-delete-card"
+              title="删除卡片"
+              onClick={(e) => handleDelete(e, card.id)}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              </svg>
+            </button>
+          </div>
         ))}
       </div>
     </div>

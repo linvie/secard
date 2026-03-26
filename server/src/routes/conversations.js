@@ -227,6 +227,98 @@ router.post('/chat', async (req, res) => {
   }
 });
 
+// Regenerate: delete the last AI response and generate a new one
+router.post('/regenerate', async (req, res) => {
+  const { card_id } = req.body;
+
+  if (!card_id) {
+    return res.status(400).json({ error: 'card_id is required' });
+  }
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return res.status(400).json({ error: '请先在设置页配置 DeepSeek API Key' });
+  }
+
+  const db = getDb();
+
+  // Get card with associated work info
+  const card = db.prepare(`
+    SELECT c.*, w.title AS work_title, w.type AS work_type, w.creator AS work_creator, w.year AS work_year
+    FROM cards c
+    LEFT JOIN works w ON c.work_id = w.id
+    WHERE c.id = ?
+  `).get(card_id);
+
+  if (!card) {
+    return res.status(404).json({ error: 'card not found' });
+  }
+
+  // Find the last assistant message and delete it
+  const lastAssistant = db.prepare(
+    'SELECT id FROM conversations WHERE card_id = ? AND role = ? ORDER BY created_at DESC LIMIT 1'
+  ).get(card_id, 'assistant');
+
+  if (lastAssistant) {
+    db.prepare('DELETE FROM conversations WHERE id = ?').run(lastAssistant.id);
+  }
+
+  // Build conversation context using AI style
+  const settings = getSettings();
+  const styleKey = settings.ai_style || 'thoughtful';
+  const customPrompt = settings.ai_custom_prompt || '';
+  const systemContent = buildSystemPrompt(card, styleKey, customPrompt);
+
+  // Get remaining conversation history
+  const history = db.prepare(
+    'SELECT role, message FROM conversations WHERE card_id = ? ORDER BY created_at ASC'
+  ).all(card_id);
+
+  const apiMessages = [
+    { role: 'system', content: systemContent },
+    ...history.map(h => ({ role: h.role, content: h.message })),
+  ];
+
+  try {
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: apiMessages,
+        max_tokens: 512,
+        temperature: getStyleTemperature(styleKey),
+      }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      return res.status(502).json({ error: `DeepSeek API 错误: ${response.status}`, detail: errBody });
+    }
+
+    const data = await response.json();
+    const aiContent = data.choices?.[0]?.message?.content || '';
+
+    if (!aiContent) {
+      return res.status(502).json({ error: 'DeepSeek API 返回内容为空' });
+    }
+
+    // Save new AI response
+    const insertMsg = db.prepare(
+      'INSERT INTO conversations (card_id, role, message) VALUES (?, ?, ?)'
+    );
+    const aiResult = insertMsg.run(card_id, 'assistant', aiContent);
+    const aiMsg = db.prepare('SELECT * FROM conversations WHERE id = ?').get(aiResult.lastInsertRowid);
+
+    res.json({ assistant_message: aiMsg, deleted_id: lastAssistant?.id || null });
+  } catch (err) {
+    res.status(502).json({ error: '无法连接 DeepSeek API', detail: err.message });
+  }
+});
+
 // Generate summary for a card's conversation
 router.post('/summary/:cardId', async (req, res) => {
   const apiKey = getApiKey();

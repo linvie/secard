@@ -136,7 +136,9 @@ export default function Settings() {
       <section className="settings-section">
         <h2>DeepSeek API Key</h2>
         <p className="settings-desc">
-          配置 API Key 后即可在卡片详情页与 AI 对话。
+          {currentKey
+            ? '系统仅保留一个 API Key，修改后将替换现有 Key。'
+            : '配置 API Key 后即可在卡片详情页与 AI 对话。'}
           API Key 仅存储在本地，不会上传到任何服务器。
         </p>
 
@@ -147,12 +149,12 @@ export default function Settings() {
         <form onSubmit={handleSave} className="settings-form">
           <input
             type="password"
-            placeholder="输入新的 API Key"
+            placeholder={currentKey ? '输入新的 Key 以替换现有 Key' : '输入 DeepSeek API Key'}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
           <button type="submit" disabled={!apiKey.trim() || saving}>
-            {saving ? '保存中…' : '保存'}
+            {saving ? '保存中…' : currentKey ? '更新' : '保存'}
           </button>
         </form>
 
@@ -164,7 +166,9 @@ export default function Settings() {
       <section className="settings-section">
         <h2>Google Books API Key</h2>
         <p className="settings-desc">
-          配置后可增强中文书籍搜索结果。未配置时仅使用 Open Library 搜索。
+          {currentGbKey
+            ? '系统仅保留一个 API Key，修改后将替换现有 Key。'
+            : '配置后可增强中文书籍搜索结果。未配置时仅使用 Open Library 搜索。'}
           API Key 仅存储在本地，不会上传到任何服务器。
         </p>
 
@@ -175,12 +179,12 @@ export default function Settings() {
         <form onSubmit={handleSaveGb} className="settings-form">
           <input
             type="password"
-            placeholder="输入 Google Books API Key"
+            placeholder={currentGbKey ? '输入新的 Key 以替换现有 Key' : '输入 Google Books API Key'}
             value={gbApiKey}
             onChange={(e) => setGbApiKey(e.target.value)}
           />
           <button type="submit" disabled={!gbApiKey.trim() || savingGb}>
-            {savingGb ? '保存中…' : '保存'}
+            {savingGb ? '保存中…' : currentGbKey ? '更新' : '保存'}
           </button>
         </form>
 

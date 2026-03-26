@@ -141,3 +141,34 @@ a.card-item:hover {
   color: var(--text);
   font-size: 13px;
 }
+
+.card-item-wrapper {
+  position: relative;
+}
+
+.btn-delete-card {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s, background 0.2s;
+}
+
+.card-item-wrapper:hover .btn-delete-card {
+  opacity: 1;
+}
+
+.btn-delete-card:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}

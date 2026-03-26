@@ -22,6 +22,12 @@ export async function createCard({ content, work_id }) {
   return res.json();
 }
 
+export async function deleteCard(id) {
+  const res = await fetch(`${BASE}/cards/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete card');
+  return res.json();
+}
+
 export async function fetchWork(id) {
   const res = await fetch(`${BASE}/works/${id}`);
   if (!res.ok) throw new Error('Failed to fetch work');
@@ -66,6 +72,19 @@ export async function sendChat(card_id, message) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Failed to send message');
+  }
+  return res.json();
+}
+
+export async function regenerateChat(card_id) {
+  const res = await fetch(`${BASE}/conversations/regenerate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ card_id }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to regenerate');
   }
   return res.json();
 }

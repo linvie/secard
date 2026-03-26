@@ -205,6 +205,35 @@
   opacity: 0.8;
 }
 
+.msg-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.msg-action-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.msg-action-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.msg-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .msg-loading .msg-text {
   opacity: 0.6;
   animation: pulse 1.5s infinite;

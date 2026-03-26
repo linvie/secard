@@ -73,4 +73,16 @@ router.get('/', (req, res) => {
   res.json(cards);
 });
 
+// Delete a card
+router.delete('/:id', (req, res) => {
+  const db = getDb();
+  const card = db.prepare('SELECT id FROM cards WHERE id = ?').get(req.params.id);
+  if (!card) {
+    return res.status(404).json({ error: 'card not found' });
+  }
+
+  db.prepare('DELETE FROM cards WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
 module.exports = router;

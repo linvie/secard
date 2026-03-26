@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchCard, fetchConversations, sendChat, generateSummary } from '../api';
+import { fetchCard, fetchConversations, sendChat, generateSummary, regenerateChat } from '../api';
 import './CardDetail.css';
 
 const typeIcon = { music: '🎵', book: '📖', movie: '🎬' };
@@ -13,6 +13,8 @@ export default function CardDetail() {
   const [error, setError] = useState(null);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
   const [chatError, setChatError] = useState(null);
   const msgListRef = useRef(null);
 
@@ -73,6 +75,33 @@ export default function CardDetail() {
     }
   };
 
+  const handleRegenerate = async () => {
+    if (regenerating || sending) return;
+    setRegenerating(true);
+    setChatError(null);
+    try {
+      const { assistant_message, deleted_id } = await regenerateChat(Number(id));
+      setMessages((prev) => {
+        const filtered = deleted_id ? prev.filter((m) => m.id !== deleted_id) : prev;
+        return [...filtered, assistant_message];
+      });
+    } catch (err) {
+      setChatError(err.message);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleCopy = async (text, msgId) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(msgId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      setChatError('复制失败');
+    }
+  };
+
   if (loading) return <div className="card-detail"><p className="detail-status">加载中…</p></div>;
   if (error || !card) return (
     <div className="card-detail">
@@ -121,13 +150,39 @@ export default function CardDetail() {
           <p className="conv-empty">还没有对话，在下方输入开始和 AI 聊聊吧</p>
         ) : (
           <div className="msg-list" ref={msgListRef}>
-            {messages.map((msg) => (
-              <div key={msg.id} className={`msg-item msg-${msg.role}`}>
-                <span className="msg-role">{msg.role === 'user' ? '我' : 'AI'}</span>
-                <p className="msg-text">{msg.message}</p>
-              </div>
-            ))}
-            {sending && (
+            {messages.map((msg, idx) => {
+              const isAssistant = msg.role === 'assistant';
+              const isLastAssistant = isAssistant &&
+                messages.slice(idx + 1).every((m) => m.role !== 'assistant');
+              return (
+                <div key={msg.id} className={`msg-item msg-${msg.role}`}>
+                  <span className="msg-role">{msg.role === 'user' ? '我' : 'AI'}</span>
+                  <p className="msg-text">{msg.message}</p>
+                  {isAssistant && (
+                    <div className="msg-actions">
+                      <button
+                        className="msg-action-btn"
+                        title="复制"
+                        onClick={() => handleCopy(msg.message, msg.id)}
+                      >
+                        {copiedId === msg.id ? '已复制' : '复制'}
+                      </button>
+                      {isLastAssistant && (
+                        <button
+                          className="msg-action-btn"
+                          title="重新生成"
+                          onClick={handleRegenerate}
+                          disabled={regenerating || sending}
+                        >
+                          {regenerating ? '生成中…' : '重新生成'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {(sending || regenerating) && (
               <div className="msg-item msg-assistant msg-loading">
                 <span className="msg-role">AI</span>
                 <p className="msg-text">思考中…</p>
