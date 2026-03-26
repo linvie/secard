@@ -22,40 +22,34 @@ function getApiKey() {
 const AI_STYLE_PRESETS = {
   thoughtful: {
     name: '深度思考',
-    prompt: '你是一位善于引导深度思考的对话伙伴。请基于用户的感想，用启发性的问题和观察帮助用户深入探索自己的想法。语气温和而富有洞察力，像一位善于倾听的朋友。',
+    prompt: '你是一位善于引导深度思考的对话伙伴。请基于用户的感想，用启发性的问题和深入的观察帮助用户探索自己的想法。你可以分析作品的主题、创作背景、艺术手法，将用户的感受与更广阔的文化和人生经验联系起来。语气温和而富有洞察力，像一位博学且善于倾听的朋友。回复要有实质内容和深度，不要只是泛泛而谈。',
     temperature: 0.7,
-    maxResponseChars: 200,
   },
   warm: {
     name: '温暖共情',
-    prompt: '你是一位温暖、善于共情的倾听者。请认真感受用户文字中的情绪，给予真诚的回应和情感上的支持。不急于分析或建议，先让用户感到被理解和接纳。语气亲切自然，像在和好友聊天。',
+    prompt: '你是一位温暖、善于共情的倾听者。请认真感受用户文字中的情绪，给予真诚的回应和情感上的支持。你可以分享类似的感受、回忆相关的生活场景，让对话充满温度。不急于分析或建议，先让用户感到被理解和接纳，然后再温柔地引导更深入的表达。语气亲切自然，像在和一位懂你的老友深夜聊天。',
     temperature: 0.8,
-    maxResponseChars: 200,
   },
   critical: {
     name: '犀利点评',
-    prompt: '你是一位有独到见解的文艺评论者。请基于用户的感想，给出有深度、有锐度的评论和延伸思考。可以提出不同视角甚至温和的反驳，激发更深层的思考。语气直接但不刻薄，像一位犀利的书评人。',
+    prompt: '你是一位有独到见解的文艺评论者。请基于用户的感想，给出有深度、有锐度的评论和延伸思考。你可以从艺术技法、叙事结构、文化语境等角度切入，提出不同视角甚至温和的反驳，引用其他作品进行对比分析，激发更深层的思考。语气直接但不刻薄，像一位犀利而有见地的书评人。观点要鲜明，论据要充分。',
     temperature: 0.6,
-    maxResponseChars: 250,
   },
   creative: {
     name: '自由联想',
-    prompt: '你是一位富有想象力的创意伙伴。请基于用户的感想，自由地联想到其他作品、意象、故事或哲学概念，编织出意想不到的连接。语气轻松有趣，像一场天马行空的头脑风暴。',
+    prompt: '你是一位富有想象力的创意伙伴。请基于用户的感想，自由地联想到其他作品、意象、故事、哲学概念或生活经验，编织出意想不到的连接。你可以跨越不同的艺术形式、时代和文化，寻找隐藏的共鸣和呼应。语气轻松有趣，像一场天马行空的头脑风暴，让人眼前一亮。',
     temperature: 0.9,
-    maxResponseChars: 250,
   },
   concise: {
     name: '简洁精炼',
-    prompt: '你是一位言简意赅的对话者。请用最精炼的语言回应用户的感想，每次回复控制在两三句话以内。一针见血，不说废话，像禅宗语录般简洁有力。',
+    prompt: '你是一位言简意赅的对话者。请用精炼但有力的语言回应用户的感想，每次回复控制在三到五句话以内。一针见血，不说废话，但要有信息量和启发性，像禅宗语录般简洁有力。',
     temperature: 0.5,
-    maxResponseChars: 100,
   },
 };
 
 function buildSystemPrompt(card, styleKey, customPrompt) {
   const style = AI_STYLE_PRESETS[styleKey];
   const persona = styleKey === 'custom' && customPrompt ? customPrompt : (style || AI_STYLE_PRESETS.thoughtful).prompt;
-  const maxChars = style ? style.maxResponseChars : 200;
 
   let systemContent = `${persona}\n\n用户的原始感想：\n"${card.content}"`;
 
@@ -66,7 +60,7 @@ function buildSystemPrompt(card, styleKey, customPrompt) {
     if (card.work_year) systemContent += `，年份：${card.work_year}`;
   }
 
-  systemContent += `\n\n回复控制在 ${maxChars} 字以内。`;
+  systemContent += '\n\n请根据对话的深度和复杂度自然地调整回复长度。简单的回应可以简短，但如果话题值得深入探讨，请充分展开你的想法，不要刻意压缩。用中文回复。';
 
   return systemContent;
 }
@@ -186,6 +180,17 @@ router.post('/chat', async (req, res) => {
     ...history.map(h => ({ role: h.role, content: h.message })),
   ];
 
+  const temperature = getStyleTemperature(styleKey);
+
+  // Log AI request details for debugging
+  console.log('\n========== AI Chat Request ==========');
+  console.log(`[AI] Card ID: ${card_id}`);
+  console.log(`[AI] Style: ${styleKey} (temperature: ${temperature})`);
+  console.log(`[AI] System Prompt:\n${systemContent}`);
+  console.log(`[AI] Message count: ${apiMessages.length} (1 system + ${history.length} history)`);
+  console.log(`[AI] User message: ${message.trim()}`);
+  console.log('=====================================\n');
+
   // Set up SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -205,14 +210,15 @@ router.post('/chat', async (req, res) => {
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: apiMessages,
-        max_tokens: 512,
-        temperature: getStyleTemperature(styleKey),
+        max_tokens: 2048,
+        temperature,
         stream: true,
       }),
     });
 
     if (!response.ok) {
       const errBody = await response.text();
+      console.log(`[AI] API Error: ${response.status} - ${errBody}`);
       res.write(`data: ${JSON.stringify({ type: 'error', error: `DeepSeek API 错误: ${response.status}` })}\n\n`);
       res.end();
       return;
@@ -251,10 +257,16 @@ router.post('/chat', async (req, res) => {
     }
 
     if (!fullContent) {
+      console.log('[AI] Response: empty');
       res.write(`data: ${JSON.stringify({ type: 'error', error: 'DeepSeek API 返回内容为空' })}\n\n`);
       res.end();
       return;
     }
+
+    console.log(`\n---------- AI Response ----------`);
+    console.log(`[AI] Response length: ${fullContent.length} chars`);
+    console.log(`[AI] Response: ${fullContent}`);
+    console.log(`---------------------------------\n`);
 
     // Save AI response to DB
     const aiResult = insertMsg.run(card_id, 'assistant', fullContent);
@@ -264,6 +276,7 @@ router.post('/chat', async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'done', data: aiMsg })}\n\n`);
     res.end();
   } catch (err) {
+    console.log(`[AI] Connection error: ${err.message}`);
     res.write(`data: ${JSON.stringify({ type: 'error', error: '无法连接 DeepSeek API' })}\n\n`);
     res.end();
   }
@@ -322,6 +335,16 @@ router.post('/regenerate', async (req, res) => {
     ...history.map(h => ({ role: h.role, content: h.message })),
   ];
 
+  const temperature = getStyleTemperature(styleKey);
+
+  // Log regenerate request
+  console.log('\n========== AI Regenerate Request ==========');
+  console.log(`[AI] Card ID: ${card_id}, Deleted msg ID: ${deletedId}`);
+  console.log(`[AI] Style: ${styleKey} (temperature: ${temperature})`);
+  console.log(`[AI] System Prompt:\n${systemContent}`);
+  console.log(`[AI] Message count: ${apiMessages.length}`);
+  console.log('============================================\n');
+
   // Set up SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -341,13 +364,15 @@ router.post('/regenerate', async (req, res) => {
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: apiMessages,
-        max_tokens: 512,
-        temperature: getStyleTemperature(styleKey),
+        max_tokens: 2048,
+        temperature,
         stream: true,
       }),
     });
 
     if (!response.ok) {
+      const errBody = await response.text();
+      console.log(`[AI] Regenerate API Error: ${response.status} - ${errBody}`);
       res.write(`data: ${JSON.stringify({ type: 'error', error: `DeepSeek API 错误: ${response.status}` })}\n\n`);
       res.end();
       return;
@@ -386,10 +411,16 @@ router.post('/regenerate', async (req, res) => {
     }
 
     if (!fullContent) {
+      console.log('[AI] Regenerate response: empty');
       res.write(`data: ${JSON.stringify({ type: 'error', error: 'DeepSeek API 返回内容为空' })}\n\n`);
       res.end();
       return;
     }
+
+    console.log(`\n---------- AI Regenerate Response ----------`);
+    console.log(`[AI] Response length: ${fullContent.length} chars`);
+    console.log(`[AI] Response: ${fullContent}`);
+    console.log(`---------------------------------------------\n`);
 
     // Save new AI response
     const insertMsg = db.prepare(
@@ -401,6 +432,7 @@ router.post('/regenerate', async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'done', data: aiMsg })}\n\n`);
     res.end();
   } catch (err) {
+    console.log(`[AI] Regenerate connection error: ${err.message}`);
     res.write(`data: ${JSON.stringify({ type: 'error', error: '无法连接 DeepSeek API' })}\n\n`);
     res.end();
   }
