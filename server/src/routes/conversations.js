@@ -133,7 +133,7 @@ router.get('/card/:cardId', (req, res) => {
   res.json(messages);
 });
 
-// Chat: send user message, get AI response from DeepSeek
+// Chat: send user message, get AI response from DeepSeek (streaming SSE)
 router.post('/chat', async (req, res) => {
   const { card_id, message } = req.body;
 
@@ -167,7 +167,8 @@ router.post('/chat', async (req, res) => {
   const insertMsg = db.prepare(
     'INSERT INTO conversations (card_id, role, message) VALUES (?, ?, ?)'
   );
-  insertMsg.run(card_id, 'user', message.trim());
+  const userResult = insertMsg.run(card_id, 'user', message.trim());
+  const userMsg = db.prepare('SELECT * FROM conversations WHERE id = ?').get(userResult.lastInsertRowid);
 
   // Build conversation context using AI style
   const settings = getSettings();
@@ -185,6 +186,15 @@ router.post('/chat', async (req, res) => {
     ...history.map(h => ({ role: h.role, content: h.message })),
   ];
 
+  // Set up SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  // Send user message event first
+  res.write(`data: ${JSON.stringify({ type: 'user_message', data: userMsg })}\n\n`);
+
   try {
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
@@ -197,37 +207,69 @@ router.post('/chat', async (req, res) => {
         messages: apiMessages,
         max_tokens: 512,
         temperature: getStyleTemperature(styleKey),
+        stream: true,
       }),
     });
 
     if (!response.ok) {
       const errBody = await response.text();
-      return res.status(502).json({ error: `DeepSeek API 错误: ${response.status}`, detail: errBody });
+      res.write(`data: ${JSON.stringify({ type: 'error', error: `DeepSeek API 错误: ${response.status}` })}\n\n`);
+      res.end();
+      return;
     }
 
-    const data = await response.json();
-    const aiContent = data.choices?.[0]?.message?.content || '';
+    let fullContent = '';
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    if (!aiContent) {
-      return res.status(502).json({ error: 'DeepSeek API 返回内容为空' });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        const payload = trimmed.slice(6);
+        if (payload === '[DONE]') continue;
+
+        try {
+          const chunk = JSON.parse(payload);
+          const delta = chunk.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            fullContent += delta;
+            res.write(`data: ${JSON.stringify({ type: 'chunk', content: delta })}\n\n`);
+          }
+        } catch {
+          // Skip malformed chunks
+        }
+      }
     }
 
-    // Save AI response
-    const aiResult = insertMsg.run(card_id, 'assistant', aiContent);
+    if (!fullContent) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'DeepSeek API 返回内容为空' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    // Save AI response to DB
+    const aiResult = insertMsg.run(card_id, 'assistant', fullContent);
     const aiMsg = db.prepare('SELECT * FROM conversations WHERE id = ?').get(aiResult.lastInsertRowid);
 
-    // Get user message we just saved
-    const userMsg = db.prepare(
-      'SELECT * FROM conversations WHERE card_id = ? AND role = ? ORDER BY created_at DESC LIMIT 1'
-    ).get(card_id, 'user');
-
-    res.json({ user_message: userMsg, assistant_message: aiMsg });
+    // Send done event with the saved message
+    res.write(`data: ${JSON.stringify({ type: 'done', data: aiMsg })}\n\n`);
+    res.end();
   } catch (err) {
-    res.status(502).json({ error: '无法连接 DeepSeek API', detail: err.message });
+    res.write(`data: ${JSON.stringify({ type: 'error', error: '无法连接 DeepSeek API' })}\n\n`);
+    res.end();
   }
 });
 
-// Regenerate: delete the last AI response and generate a new one
+// Regenerate: delete the last AI response and generate a new one (streaming SSE)
 router.post('/regenerate', async (req, res) => {
   const { card_id } = req.body;
 
@@ -259,6 +301,7 @@ router.post('/regenerate', async (req, res) => {
     'SELECT id FROM conversations WHERE card_id = ? AND role = ? ORDER BY created_at DESC LIMIT 1'
   ).get(card_id, 'assistant');
 
+  const deletedId = lastAssistant?.id || null;
   if (lastAssistant) {
     db.prepare('DELETE FROM conversations WHERE id = ?').run(lastAssistant.id);
   }
@@ -279,6 +322,15 @@ router.post('/regenerate', async (req, res) => {
     ...history.map(h => ({ role: h.role, content: h.message })),
   ];
 
+  // Set up SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  // Send deleted_id event
+  res.write(`data: ${JSON.stringify({ type: 'deleted', deleted_id: deletedId })}\n\n`);
+
   try {
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
@@ -291,31 +343,66 @@ router.post('/regenerate', async (req, res) => {
         messages: apiMessages,
         max_tokens: 512,
         temperature: getStyleTemperature(styleKey),
+        stream: true,
       }),
     });
 
     if (!response.ok) {
-      const errBody = await response.text();
-      return res.status(502).json({ error: `DeepSeek API 错误: ${response.status}`, detail: errBody });
+      res.write(`data: ${JSON.stringify({ type: 'error', error: `DeepSeek API 错误: ${response.status}` })}\n\n`);
+      res.end();
+      return;
     }
 
-    const data = await response.json();
-    const aiContent = data.choices?.[0]?.message?.content || '';
+    let fullContent = '';
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    if (!aiContent) {
-      return res.status(502).json({ error: 'DeepSeek API 返回内容为空' });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        const payload = trimmed.slice(6);
+        if (payload === '[DONE]') continue;
+
+        try {
+          const chunk = JSON.parse(payload);
+          const delta = chunk.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            fullContent += delta;
+            res.write(`data: ${JSON.stringify({ type: 'chunk', content: delta })}\n\n`);
+          }
+        } catch {
+          // Skip malformed chunks
+        }
+      }
+    }
+
+    if (!fullContent) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'DeepSeek API 返回内容为空' })}\n\n`);
+      res.end();
+      return;
     }
 
     // Save new AI response
     const insertMsg = db.prepare(
       'INSERT INTO conversations (card_id, role, message) VALUES (?, ?, ?)'
     );
-    const aiResult = insertMsg.run(card_id, 'assistant', aiContent);
+    const aiResult = insertMsg.run(card_id, 'assistant', fullContent);
     const aiMsg = db.prepare('SELECT * FROM conversations WHERE id = ?').get(aiResult.lastInsertRowid);
 
-    res.json({ assistant_message: aiMsg, deleted_id: lastAssistant?.id || null });
+    res.write(`data: ${JSON.stringify({ type: 'done', data: aiMsg })}\n\n`);
+    res.end();
   } catch (err) {
-    res.status(502).json({ error: '无法连接 DeepSeek API', detail: err.message });
+    res.write(`data: ${JSON.stringify({ type: 'error', error: '无法连接 DeepSeek API' })}\n\n`);
+    res.end();
   }
 });
 

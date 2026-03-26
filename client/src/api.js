@@ -63,30 +63,84 @@ export async function createWork(work) {
   return res.json();
 }
 
-export async function sendChat(card_id, message) {
+export async function sendChatStream(card_id, message, { onUserMessage, onChunk, onDone, onError }) {
   const res = await fetch(`${BASE}/conversations/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ card_id, message }),
   });
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Failed to send message');
   }
-  return res.json();
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith('data: ')) continue;
+      try {
+        const event = JSON.parse(trimmed.slice(6));
+        if (event.type === 'user_message') onUserMessage?.(event.data);
+        else if (event.type === 'chunk') onChunk?.(event.content);
+        else if (event.type === 'done') onDone?.(event.data);
+        else if (event.type === 'error') onError?.(event.error);
+      } catch {
+        // Skip malformed events
+      }
+    }
+  }
 }
 
-export async function regenerateChat(card_id) {
+export async function regenerateChatStream(card_id, { onDeleted, onChunk, onDone, onError }) {
   const res = await fetch(`${BASE}/conversations/regenerate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ card_id }),
   });
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Failed to regenerate');
   }
-  return res.json();
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith('data: ')) continue;
+      try {
+        const event = JSON.parse(trimmed.slice(6));
+        if (event.type === 'deleted') onDeleted?.(event.deleted_id);
+        else if (event.type === 'chunk') onChunk?.(event.content);
+        else if (event.type === 'done') onDone?.(event.data);
+        else if (event.type === 'error') onError?.(event.error);
+      } catch {
+        // Skip malformed events
+      }
+    }
+  }
 }
 
 export async function generateSummary(cardId) {

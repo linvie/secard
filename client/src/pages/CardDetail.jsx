@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchCard, fetchConversations, sendChat, generateSummary, regenerateChat } from '../api';
+import { fetchCard, fetchConversations, sendChatStream, generateSummary, regenerateChatStream } from '../api';
 import './CardDetail.css';
 
 const typeIcon = { music: '🎵', book: '📖', movie: '🎬' };
@@ -14,6 +14,7 @@ export default function CardDetail() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
   const [copiedId, setCopiedId] = useState(null);
   const [chatError, setChatError] = useState(null);
   const msgListRef = useRef(null);
@@ -32,7 +33,7 @@ export default function CardDetail() {
     if (msgListRef.current) {
       msgListRef.current.scrollTop = msgListRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, streamingText]);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -42,25 +43,31 @@ export default function CardDetail() {
     setInput('');
     setSending(true);
     setChatError(null);
-
-    // Optimistically add user message
-    const tempUserMsg = { id: Date.now(), role: 'user', message: text };
-    setMessages((prev) => [...prev, tempUserMsg]);
+    setStreamingText('');
 
     try {
-      const { user_message, assistant_message } = await sendChat(Number(id), text);
-      // Replace temp message with real ones
-      setMessages((prev) => [
-        ...prev.filter((m) => m.id !== tempUserMsg.id),
-        user_message,
-        assistant_message,
-      ]);
+      await sendChatStream(Number(id), text, {
+        onUserMessage: (userMsg) => {
+          setMessages((prev) => [...prev, userMsg]);
+        },
+        onChunk: (content) => {
+          setStreamingText((prev) => prev + content);
+        },
+        onDone: (aiMsg) => {
+          setStreamingText('');
+          setMessages((prev) => [...prev, aiMsg]);
+          setSending(false);
+        },
+        onError: (error) => {
+          setChatError(error);
+          setStreamingText('');
+          setSending(false);
+        },
+      });
     } catch (err) {
       setChatError(err.message);
-      // Remove optimistic message on failure
-      setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
+      setStreamingText('');
       setInput(text);
-    } finally {
       setSending(false);
     }
   };
@@ -79,15 +86,32 @@ export default function CardDetail() {
     if (regenerating || sending) return;
     setRegenerating(true);
     setChatError(null);
+    setStreamingText('');
+
     try {
-      const { assistant_message, deleted_id } = await regenerateChat(Number(id));
-      setMessages((prev) => {
-        const filtered = deleted_id ? prev.filter((m) => m.id !== deleted_id) : prev;
-        return [...filtered, assistant_message];
+      await regenerateChatStream(Number(id), {
+        onDeleted: (deletedId) => {
+          if (deletedId) {
+            setMessages((prev) => prev.filter((m) => m.id !== deletedId));
+          }
+        },
+        onChunk: (content) => {
+          setStreamingText((prev) => prev + content);
+        },
+        onDone: (aiMsg) => {
+          setStreamingText('');
+          setMessages((prev) => [...prev, aiMsg]);
+          setRegenerating(false);
+        },
+        onError: (error) => {
+          setChatError(error);
+          setStreamingText('');
+          setRegenerating(false);
+        },
       });
     } catch (err) {
       setChatError(err.message);
-    } finally {
+      setStreamingText('');
       setRegenerating(false);
     }
   };
@@ -121,7 +145,17 @@ export default function CardDetail() {
 
       {card.work_title && (
         <Link to={`/works/${card.work_id}`} className="detail-work">
-          <span className="work-icon">{typeIcon[card.work_type] || '📎'}</span>
+          {card.work_cover_url ? (
+            <img
+              className="work-cover"
+              src={card.work_cover_url}
+              alt=""
+              onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = ''; }}
+            />
+          ) : null}
+          <span className="work-icon" style={card.work_cover_url ? { display: 'none' } : {}}>
+            {typeIcon[card.work_type] || '📎'}
+          </span>
           <div className="work-info">
             <span className="work-title">{card.work_title}</span>
             {card.work_creator && <span className="work-creator">{card.work_creator}</span>}
@@ -183,9 +217,12 @@ export default function CardDetail() {
               );
             })}
             {(sending || regenerating) && (
-              <div className="msg-item msg-assistant msg-loading">
+              <div className="msg-item msg-assistant msg-streaming">
                 <span className="msg-role">AI</span>
-                <p className="msg-text">思考中…</p>
+                <p className="msg-text">
+                  {streamingText || '思考中'}
+                  <span className="streaming-cursor">|</span>
+                </p>
               </div>
             )}
           </div>

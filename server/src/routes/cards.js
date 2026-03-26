@@ -32,7 +32,7 @@ router.post('/', (req, res) => {
 router.get('/:id', (req, res) => {
   const db = getDb();
   const card = db.prepare(`
-    SELECT c.*, w.title AS work_title, w.type AS work_type, w.creator AS work_creator
+    SELECT c.*, w.title AS work_title, w.type AS work_type, w.creator AS work_creator, w.cover_url AS work_cover_url
     FROM cards c
     LEFT JOIN works w ON c.work_id = w.id
     WHERE c.id = ?
@@ -56,7 +56,7 @@ router.get('/', (req, res) => {
   const { work_id } = req.query;
 
   let sql = `
-    SELECT c.*, w.title AS work_title, w.type AS work_type,
+    SELECT c.*, w.title AS work_title, w.type AS work_type, w.cover_url AS work_cover_url,
       (SELECT COUNT(*) FROM conversations WHERE card_id = c.id) AS message_count
     FROM cards c
     LEFT JOIN works w ON c.work_id = w.id`;

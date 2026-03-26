@@ -36,7 +36,17 @@ export default function WorkDetail() {
       <Link to="/" className="back-link">← 返回</Link>
 
       <section className="work-header">
-        <span className="work-type-icon">{typeIcon[work.type] || '📎'}</span>
+        {work.cover_url ? (
+          <img
+            className="work-detail-cover"
+            src={work.cover_url}
+            alt=""
+            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = ''; }}
+          />
+        ) : null}
+        <span className="work-type-icon" style={work.cover_url ? { display: 'none' } : {}}>
+          {typeIcon[work.type] || '📎'}
+        </span>
         <div className="work-meta">
           <h1 className="work-detail-title">{work.title}</h1>
           <div className="work-detail-info">
